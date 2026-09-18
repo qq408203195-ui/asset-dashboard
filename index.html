@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>大类资产月度观察 · 交互式数据看板 v2</title>
+<style>
+  :root {
+    --bg: #f4f6fa; --card: #ffffff; --ink: #1f2a37; --muted: #6b7a8c;
+    --line: #e3e9f0; --accent: #005eb8; --accent-soft: #e8f1fa;
+    --up: #d93a3a; --down: #0a8f4c; --flat: #8a94a6;
+    --static: #b58a2c; --live: #0a7d43; --deep: #003d7a;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: "Microsoft YaHei", "PingFang SC", sans-serif; background: var(--bg); color: var(--ink); font-size: 14px; }
+  header { background: linear-gradient(135deg, #003d7a, #005eb8); color: #fff; padding: 28px 32px 20px; }
+  header h1 { font-size: 24px; letter-spacing: 1px; }
+  header .sub { margin-top: 8px; font-size: 13px; opacity: .92; }
+  .badges { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 8px; }
+  .badge { background: rgba(255,255,255,.16); border: 1px solid rgba(255,255,255,.35); padding: 4px 12px; border-radius: 999px; font-size: 12px; }
+  .wrap { max-width: 1220px; margin: 0 auto; padding: 20px 24px 60px; }
+  .tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 18px; }
+  .tab { padding: 8px 16px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); cursor: pointer; font-size: 13px; transition: all .15s; user-select: none; }
+  .tab:hover { border-color: var(--accent); color: var(--accent); }
+  .tab.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .toolbar { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+  .toolbar input { flex: 1; min-width: 220px; padding: 9px 14px; border: 1px solid var(--line); border-radius: 8px; font-size: 13px; outline: none; background: var(--card); }
+  .toolbar input:focus { border-color: var(--accent); }
+  .legend { font-size: 12px; color: var(--muted); display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+  .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; }
+  section { display: none; animation: fade .25s; }
+  @keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; } }
+  .sec-head { display: flex; align-items: baseline; gap: 12px; margin: 6px 0 14px; flex-wrap: wrap; }
+  .sec-head h2 { font-size: 18px; color: var(--deep); }
+  .sec-head span { font-size: 12px; color: var(--muted); }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(272px, 1fr)); gap: 14px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; position: relative; transition: box-shadow .15s; }
+  .card:hover { box-shadow: 0 6px 18px rgba(0,61,122,.10); }
+  .card .name { font-size: 13px; color: var(--muted); padding-right: 52px; }
+  .card .val { font-size: 25px; font-weight: 700; margin-top: 6px; font-variant-numeric: tabular-nums; }
+  .card .val small { font-size: 13px; font-weight: 400; color: var(--muted); margin-left: 2px; }
+  .card .row { display: flex; justify-content: space-between; margin-top: 8px; font-size: 12px; }
+  .card .row .k { color: var(--muted); }
+  .delta-up { color: var(--up); font-weight: 600; }
+  .delta-down { color: var(--down); font-weight: 600; }
+  .delta-flat { color: var(--flat); }
+  .src { position: absolute; top: 12px; right: 14px; font-size: 10.5px; padding: 2px 8px; border-radius: 999px; }
+  .src.live { background: #e6f4ec; color: var(--live); }
+  .src.static { background: #faf3e2; color: var(--static); }
+  .src.calc { background: var(--accent-soft); color: var(--accent); }
+  .note { margin-top: 9px; font-size: 11.5px; color: var(--muted); line-height: 1.6; border-top: 1px dashed var(--line); padding-top: 7px; }
+  .spark { margin-top: 10px; }
+  .spark svg { width: 100%; height: 44px; display: block; }
+  .spark .cap { font-size: 10.5px; color: var(--muted); margin-bottom: 2px; }
+  .pct-line { font-size: 11.5px; margin-top: 6px; }
+  .pct-bar { height: 6px; background: #edf1f6; border-radius: 4px; margin-top: 3px; overflow: hidden; }
+  .pct-fill { height: 100%; border-radius: 4px; background: linear-gradient(90deg,#5aa9e6,#005eb8); }
+  .ov-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(255px, 1fr)); gap: 14px; }
+  .ov-block { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; cursor: pointer; }
+  .ov-block:hover { box-shadow: 0 6px 18px rgba(0,61,122,.10); }
+  .ov-block h3 { font-size: 15px; color: var(--deep); display: flex; justify-content: space-between; align-items: center; }
+  .ov-block h3 .go { font-size: 12px; color: var(--accent); }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .chip { font-size: 11.5px; background: var(--accent-soft); color: #005eb8; padding: 3px 9px; border-radius: 6px; }
+  .avail { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 800px) { .avail { grid-template-columns: 1fr; } }
+  .avail .panel { border-radius: 12px; padding: 18px; }
+  .panel.ok { background: #f0f9f3; border: 1px solid #cde8d6; }
+  .panel.no { background: #fdf6ec; border: 1px solid #f0e0c2; }
+  .panel h3 { font-size: 15px; margin-bottom: 10px; }
+  .panel.ok h3 { color: var(--live); } .panel.no h3 { color: var(--static); }
+  .panel li { margin: 7px 0 0 18px; font-size: 12.5px; line-height: 1.55; }
+  footer { text-align: center; font-size: 12px; color: var(--muted); padding: 24px; line-height: 1.8; }
+  table.srcmap { width: 100%; border-collapse: collapse; margin-top: 14px; background: var(--card); border-radius: 12px; overflow: hidden; }
+  table.srcmap th, table.srcmap td { border: 1px solid var(--line); padding: 8px 12px; font-size: 12.5px; text-align: left; }
+  table.srcmap th { background: var(--accent-soft); color: var(--deep); }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>大类资产月度观察 · 交互式数据看板</h1>
+  <div class="sub">来源报告：《旅行中的赚钱Idea》— 大类资产九宫格月度观察（2026年8月期）· 覆盖 9 大资产板块 · v2 已接入韭圈恐贪/CNN恐贪/分位数/基金发行等新增数据</div>
+  <div class="badges">
+    <span class="badge">🟢 实时数据：2026-09-17/18（MCP 实时拉取）</span>
+    <span class="badge">📄 PPT 快照：2026-08-27</span>
+    <span class="badge">数据源：Wind / 腾讯自选股 / iFinD / 韭圈恐贪API / CNN</span>
+    <span class="badge" id="dataMeta">🔄 数据加载中…</span>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="tabs" id="tabs"></div>
+  <div class="toolbar">
+    <input id="search" type="text" placeholder="🔍 搜索指标名称，如：市盈率、股息率、国债…">
+    <div class="legend">
+      <span><span class="dot" style="background:var(--live)"></span>实时可取</span>
+      <span><span class="dot" style="background:var(--accent)"></span>公式/自算</span>
+      <span><span class="dot" style="background:var(--static)"></span>PPT静态</span>
+      <span style="color:var(--up)">▲ 较PPT上行</span>
+      <span style="color:var(--down)">▼ 较PPT下行</span>
+    </div>
+  </div>
+
+  <section data-sec="overview" style="display:block"><div class="ov-grid" id="ovGrid"></div></section>
+  <section data-sec="avail">
+    <div class="avail">
+      <div class="panel ok">
+        <h3>✅ 可通过现有 MCP 直接取到（v2 更新）</h3>
+        <ul>
+          <li><b>韭圈恐贪指数</b>（新增 skill）：最新 24.24（9/17），并可取 2020-08 起全历史序列</li>
+          <li><b>CNN 恐惧贪婪指数</b>（网页抓取）：最新 29（9/17收盘），含前收/一周/一月/一年前值</li>
+          <li><b>万得全A（除金融、石油石化）PE</b>：代码 881003.WI，实时 38.16（9/18）</li>
+          <li><b>估值分位数</b>：Wind 支持直接返回历史分位字段，已接入 11 个估值指标（见各卡片分位条）</li>
+          <li><b>股基滚动 3 年年化</b>：iFinD 偏股混合型基金指数（701013.TI，Wind 885001 同口径指数）日频全序列自算</li>
+          <li><b>股基 90 日滚动发行量</b>：iFinD 新成立基金份额日频原始数据（股票型+偏股混合+灵活配置），自算滚动 90 日日均</li>
+          <li><b>CME 比特币期货 BTC.CME / COMEX 黄金 GC.CMX</b>：Wind 实时</li>
+          <li><b>富时发达市场 REITs</b>：ERGLU.FI，Wind 实时 1101.28（9/17）</li>
+          <li><b>核心 PCE 同比</b>：iFinD EDB 3.34%（2026-07）</li>
+          <li><b>时间序列</b>：恐贪指数日频、中美10Y国债周频、金银/WTI/离岸人民币周频、基金发行日频、偏股基金指数日频均已接入迷你图</li>
+        </ul>
+      </div>
+      <div class="panel no">
+        <h3>⚠️ 仍取不到（展示 PPT 快照值）</h3>
+        <ul>
+          <li><b>iBoxx 中资美元债指数</b>：Wind 中指标存在（M1012332 等）但当前账号无权限</li>
+          <li><b>转债均价中位数、转股溢价率、纯债收益率</b>：已搜索 Wind EDB 与 iFinD EDB，均未收录该类指标（集思录/申万口径）</li>
+          <li><b>公募 REITs 分派率 / 中债 IRR</b>：需逐单披露数据汇总，无接口</li>
+          <li><b>布伦特原油周线序列</b>：仅实时报价（hf_OIL 不支持K线），无历史序列</li>
+          <li><b>发行量口径差异</b>：iFinD 自算 90 日日均 10.73 亿份 vs PPT（Wind口径）19.75 亿份，Wind EDB 积分耗尽未能复核，两口径并列展示</li>
+          <li>CNN 恐贪仅有当前值与前后期参考值，无连续序列</li>
+        </ul>
+      </div>
+    </div>
+    <table class="srcmap">
+      <tr><th>板块</th><th>可实时获取</th><th>取不到（PPT静态）</th></tr>
+      <tr><td>A股</td><td>全A PE 21.43 + 分位、881003 PE 38.16、沪深300 PE/股息率+分位、中证红利股息率+分位、风险溢价（计算）、韭圈恐贪 24.24</td><td>股基发行量两口径并存（自算10.73/PPT 19.75）、滚动3年年化用iFinD口径</td></tr>
+      <tr><td>港股</td><td>恒指/恒生科技/港股通高股息 PE与股息率+分位、AH溢价、三项溢价（计算）</td><td>—</td></tr>
+      <tr><td>美股</td><td>四大指数 PE+分位、风险溢价（计算）、CNN恐贪 29</td><td>—</td></tr>
+      <tr><td>中国债券</td><td>中债 1Y/10Y/30Y + 10Y周线序列、期限利差（计算）</td><td>—</td></tr>
+      <tr><td>可转债</td><td>中证转债指数点位</td><td>均价中位数、转股溢价率、纯债收益率（两库均未收录）</td></tr>
+      <tr><td>美国债券/宏观</td><td>美债 3M/10Y + 周线序列、美元指数、USDCNH+周线、CPI、核心PCE同比、EFFR</td><td>iBoxx中资美元债（无权限）</td></tr>
+      <tr><td>黄金/比特币</td><td>GC.CMX / BTC.CME、金银（自选股）+周线序列、金银比（计算）</td><td>—</td></tr>
+      <tr><td>原油</td><td>WTI + 周线、布油实时报价、金油比（计算）</td><td>布油周线序列</td></tr>
+      <tr><td>REITs</td><td>中证REITs全收益、富时发达市场REITs（ERGLU.FI）</td><td>分派率/IRR</td></tr>
+    </table>
+  </section>
+
+  <footer>
+    数据说明：实时值为 MCP 连接器于 2026-09-17/18 拉取（Wind / 腾讯自选股 / iFinD / 韭圈恐贪 API / CNN 官网）；PPT 快照为报告期 2026-08-27 数值。<br>
+    迷你图序列：恐贪指数近 250 个交易日（韭圈API）；国债收益率为周频（iFinD EDB）；商品与汇率为周频（腾讯自选股）。<br>
+    本页面仅为数据汇总展示，不构成任何投资建议。市场有风险，投资需谨慎。
+  </footer>
+</div>
+
+<script>
+// ============ 数据加载（data.json 由每周五 20:00 自动更新任务推送） ============
+let PPT = "8/27快照", DATA = [], SECS = [], SEC_TITLE = {}, OVERVIEW = [];
+async function loadData() {
+  const r = await fetch("data.json", { cache: "no-store" });
+  if (!r.ok) throw new Error("HTTP " + r.status);
+  return r.json();
+}
+
+function render() {
+// ============ 渲染 ============
+const tabsEl = document.getElementById("tabs");
+SECS.forEach(s => {
+  const b = document.createElement("div");
+  b.className = "tab" + (s.id === "overview" ? " active" : "");
+  b.textContent = s.label; b.dataset.sec = s.id;
+  b.onclick = () => switchTab(s.id);
+  tabsEl.appendChild(b);
+});
+
+let currentTab = "overview";
+function showSections(list) {
+  document.querySelectorAll("section").forEach(sec => {
+    sec.style.display = list.includes(sec.dataset.sec) ? "block" : "none";
+  });
+}
+function switchTab(id) {
+  currentTab = id;
+  document.getElementById("search").value = "";
+  document.querySelectorAll(".tab").forEach(t => t.classList.toggle("active", t.dataset.sec === id));
+  showSections([id]);
+}
+
+function fmtDelta(d) {
+  const cls = d === "up" ? "delta-up" : d === "down" ? "delta-down" : "delta-flat";
+  const arrow = d === "up" ? "▲" : d === "down" ? "▼" : "—";
+  const label = d === "flat" ? "较" + PPT + "无变化/无对比" : "较" + PPT + (d === "up" ? "上行" : "下行");
+  return `<span class="${cls}">${arrow} ${label}</span>`;
+}
+function srcBadge(src) {
+  if (src === "live") return '<span class="src live">实时</span>';
+  if (src === "calc") return '<span class="src calc">计算值</span>';
+  return '<span class="src static">PPT静态</span>';
+}
+function pctBar(pct, label) {
+  if (pct == null) return "";
+  return `<div class="pct-line"><span style="color:var(--muted)">${label}</span> <b>${pct.toFixed(1)}%</b>
+    <div class="pct-bar"><div class="pct-fill" style="width:${pct}%"></div></div></div>`;
+}
+function sparkline(key) {
+  const S = window.SERIES || {}; const sp = S[key];
+  if (!sp || !sp.v || sp.v.length < 3) return "";
+  const v = sp.v, W = 240, H = 44, pad = 3;
+  const min = Math.min(...v), max = Math.max(...v), rng = (max - min) || 1;
+  const pts = v.map((y, i) => `${(i / (v.length - 1) * (W - 2 * pad) + pad).toFixed(1)},${(H - pad - (y - min) / rng * (H - 2 * pad)).toFixed(1)}`);
+  const lastPt = pts[pts.length - 1].split(",");
+  const color = v[v.length - 1] >= v[0] ? "#d93a3a" : "#0a8f4c";
+  return `<div class="spark"><div class="cap">📈 ${sp.cap || ""}</div>
+    <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+      <polyline fill="none" stroke="${color}" stroke-width="1.8" stroke-linejoin="round" points="${pts.join(" ")}"/>
+      <circle cx="${lastPt[0]}" cy="${lastPt[1]}" r="2.6" fill="${color}"/>
+    </svg></div>`;
+}
+function cardHTML(item) {
+  const isNA = item.val === "—";
+  return `<div class="card" data-name="${item.name}">
+    ${srcBadge(item.src)}
+    <div class="name">${item.name}</div>
+    <div class="val">${isNA ? "—" : item.val}<small>${item.unit || ""}</small></div>
+    <div class="row"><span class="k">PPT快照(8/27)</span><span>${item.ppt}</span></div>
+    <div class="row"><span class="k">变动</span>${fmtDelta(item.d)}</div>
+    ${pctBar(item.pct, item.pctLabel || "")}
+    ${item.spark ? sparkline(item.spark) : ""}
+    <div class="note"><b>来源：</b>${item.from} · ${item.date}<br>${item.note}</div>
+  </div>`;
+}
+
+const secEls = {};
+SECS.filter(s => s.id !== "overview" && s.id !== "avail").forEach(s => {
+  const sec = document.querySelector(`section[data-sec="${s.id}"]`);
+  const [title, tagline] = SEC_TITLE[s.id];
+  const items = DATA.filter(d => d.sec === s.id);
+  sec.innerHTML = `<div class="sec-head"><h2>${title}</h2><span>${tagline}</span></div>
+    <div class="grid">${items.map(cardHTML).join("")}</div>`;
+  secEls[s.id] = sec;
+});
+
+document.getElementById("ovGrid").innerHTML = OVERVIEW.map(o => `
+  <div class="ov-block" onclick="switchTab('${o.sec}')">
+    <h3>${o.title}<span class="go">查看明细 →</span></h3>
+    <div class="chips">${o.chips.map(c => `<span class="chip">${c}</span>`).join("")}</div>
+  </div>`).join("");
+
+function applySearch() {
+  const q = document.getElementById("search").value.trim().toLowerCase();
+  if (!q) {
+    document.querySelectorAll(".tab").forEach(t => t.classList.toggle("active", t.dataset.sec === currentTab));
+    showSections([currentTab]);
+    return;
+  }
+  const ids = SECS.filter(s => !["overview", "avail"].includes(s.id)).map(s => s.id);
+  const shown = [];
+  ids.forEach(id => {
+    const sec = secEls[id]; if (!sec) return;
+    let any = false;
+    sec.querySelectorAll(".card").forEach(card => {
+      const hit = card.dataset.name.toLowerCase().includes(q);
+      card.classList.toggle("hidden", !hit);
+      if (hit) any = true;
+    });
+    if (any) shown.push(id);
+  });
+  document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+  showSections(shown);
+}
+document.getElementById("search").addEventListener("input", applySearch);
+window.switchTab = switchTab;
+}
+
+loadData().then(P => {
+  DATA = P.data; SECS = P.secs; SEC_TITLE = P.sec_title; OVERVIEW = P.overview;
+  window.SERIES = P.series || {};
+  if (P.updated_at) {
+    const el = document.getElementById("dataMeta");
+    if (el) el.textContent = "🔄 数据版本：" + P.updated_at;
+  }
+  render();
+}).catch(err => {
+  document.getElementById("ovGrid").innerHTML =
+    '<div class="ov-block"><h3>数据加载失败</h3><div class="chips"><span class="chip">' + err +
+    ' — 请通过 http(s) 访问本页（GitHub Pages 或本地服务器），直接双击 file:// 打开会因浏览器跨域限制读不到 data.json</span></div></div>';
+});
+</script>
+</body>
+</html>
